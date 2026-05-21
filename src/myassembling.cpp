@@ -22,6 +22,37 @@ namespace ngcomp
       if (elnr < 0 || elnr >= ma->GetNE(VOL))
         throw Exception("Volume element number out of range: " + ToString(elnr));
     }
+
+    map<int, int> BuildGlobalToSupport(shared_ptr<FESpace> fes,
+                                       const vector<int> & support_dofs)
+    {
+      map<int, int> global_to_support;
+      for (size_t i = 0; i < support_dofs.size(); i++)
+        {
+          int d = support_dofs[i];
+          if (d < 0 || d >= fes->GetNDof())
+            throw Exception("support_dofs contains invalid dof: " + ToString(d));
+          global_to_support[d] = int(i);
+        }
+      return global_to_support;
+    }
+
+    void CheckSupportMetadata(const vector<int> & core_dofs,
+                              const vector<int> & support_dofs,
+                              const vector<int> & core_in_support)
+    {
+      if (core_in_support.size() != core_dofs.size())
+        throw Exception("core_in_support and core_dofs must have the same length");
+
+      for (size_t i = 0; i < core_dofs.size(); i++)
+        {
+          int local = core_in_support[i];
+          if (local < 0 || local >= support_dofs.size())
+            throw Exception("core_in_support index out of range");
+          if (support_dofs[local] != core_dofs[i])
+            throw Exception("support_dofs[core_in_support[i]] must equal core_dofs[i]");
+        }
+    }
   }
 
   shared_ptr<BaseSparseMatrix> MyAssembleMatrix(shared_ptr<FESpace> fes,
@@ -89,26 +120,8 @@ namespace ngcomp
     for (int elnr : support_elements)
       CheckElementNumber(ma, elnr);
 
-    if (core_in_support.size() != core_dofs.size())
-      throw Exception("core_in_support and core_dofs must have the same length");
-
-    map<int, int> global_to_support;
-    for (size_t i = 0; i < support_dofs.size(); i++)
-      {
-        int d = support_dofs[i];
-        if (d < 0 || d >= fes->GetNDof())
-          throw Exception("support_dofs contains invalid dof: " + ToString(d));
-        global_to_support[d] = int(i);
-      }
-
-    for (size_t i = 0; i < core_dofs.size(); i++)
-      {
-        int local = core_in_support[i];
-        if (local < 0 || local >= support_dofs.size())
-          throw Exception("core_in_support index out of range");
-        if (support_dofs[local] != core_dofs[i])
-          throw Exception("support_dofs[core_in_support[i]] must equal core_dofs[i]");
-      }
+    CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support = BuildGlobalToSupport(fes, support_dofs);
 
     Array<int> rows, cols;
     Array<double> vals;
@@ -169,20 +182,106 @@ namespace ngcomp
     return result;
   }
 
+
+  shared_ptr<LocalSupportVector>
+  MyAssembleGivenLocalSupportVector(shared_ptr<FESpace> fes,
+                                    shared_ptr<LinearFormIntegrator> lfi,
+                                    vector<int> core_elements,
+                                    vector<int> support_elements,
+                                    vector<int> core_dofs,
+                                    vector<int> support_dofs,
+                                    vector<int> core_in_support)
+  {
+    auto ma = fes->GetMeshAccess();
+
+    for (int elnr : core_elements)
+      CheckElementNumber(ma, elnr);
+    for (int elnr : support_elements)
+      CheckElementNumber(ma, elnr);
+
+    CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support = BuildGlobalToSupport(fes, support_dofs);
+
+    auto vec = make_shared<VVector<double>> (support_dofs.size());
+    vec->SetScalar(0.0);
+    auto local_vec = vec->FV<double>();
+
+    Array<int> dnums;
+    LocalHeap lh(1000*1000);
+
+    /*
+      Low-level support-patch vector assembly kernel. Python supplies the
+      support patch; C++ only assembles element vectors over support_elements
+      using support_dofs as the local numbering.
+    */
+    for (int elnr : support_elements)
+      {
+        HeapReset hr(lh);
+        ElementId ei(VOL, elnr);
+
+        FiniteElement & fel = fes->GetFE(ei, lh);
+        fes->GetDofNrs(ei, dnums);
+
+        const ElementTransformation & trafo = ma->GetTrafo(ei, lh);
+
+        FlatVector<> elvec(fel.GetNDof(), lh);
+        lfi->CalcElementVector(fel, trafo, elvec, lh);
+
+        for (int i = 0; i < dnums.Size(); i++)
+          {
+            if (dnums[i] < 0)
+              continue;
+            auto it = global_to_support.find(dnums[i]);
+            if (it == global_to_support.end())
+              throw Exception("Element dof is missing from supplied support_dofs");
+            local_vec(it->second) += elvec(i);
+          }
+      }
+
+    auto result = make_shared<LocalSupportVector>();
+    result->vec = vec;
+    result->core_elements = std::move(core_elements);
+    result->support_elements = std::move(support_elements);
+    result->core_dofs = std::move(core_dofs);
+    result->support_dofs = std::move(support_dofs);
+    result->core_in_support = std::move(core_in_support);
+
+    return result;
+  }
+
   /*
     Exercise: implement a corresponding function for assembling the right hand side vector
    */
   shared_ptr<BaseVector> MyAssembleVector(shared_ptr<FESpace> fes,
                                           shared_ptr<LinearFormIntegrator> lfi)
   {
-    // A VVector (virtual vector) is derived from BaseVector
     shared_ptr<BaseVector> vec = make_shared<VVector<double>> (fes->GetNDof());
+    vec->SetScalar(0.0);
+    auto global_vec = vec->FV<double>();
 
-    // adding an element vector to the global vector
-    FlatVector<double> elvec;
+    auto ma = fes->GetMeshAccess();
+    int ne = ma->GetNE(VOL);
     Array<int> dnums;
-    vec->AddIndirect (dnums, elvec);
-    
+    LocalHeap lh(1000*1000);
+
+    for (int elnr = 0; elnr < ne; elnr++)
+      {
+        HeapReset hr(lh);
+        ElementId ei(VOL, elnr);
+
+        FiniteElement & fel = fes->GetFE(ei, lh);
+        fes->GetDofNrs(ei, dnums);
+
+        const ElementTransformation & trafo = ma->GetTrafo(ei, lh);
+
+        FlatVector<> elvec(fel.GetNDof(), lh);
+        lfi->CalcElementVector(fel, trafo, elvec, lh);
+
+        for (int i = 0; i < dnums.Size(); i++)
+          if (dnums[i] >= 0)
+            global_vec(dnums[i]) += elvec(i);
+      }
+
     return vec;
   }
 }

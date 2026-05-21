@@ -22,6 +22,16 @@ namespace ngcomp
     vector<int> support_dofs;
     vector<int> core_in_support;
   };
+
+  struct LocalSupportVector
+  {
+    shared_ptr<BaseVector> vec;
+    vector<int> core_elements;
+    vector<int> support_elements;
+    vector<int> core_dofs;
+    vector<int> support_dofs;
+    vector<int> core_in_support;
+  };
   
   shared_ptr<BaseSparseMatrix>
   MyAssembleMatrix(shared_ptr<FESpace> fes,
@@ -39,6 +49,15 @@ namespace ngcomp
   shared_ptr<LocalSupportMatrix>
   MyAssembleGivenLocalSupportMatrix(shared_ptr<FESpace> fes,
                                     shared_ptr<BilinearFormIntegrator> bfi,
+                                    vector<int> core_elements,
+                                    vector<int> support_elements,
+                                    vector<int> core_dofs,
+                                    vector<int> support_dofs,
+                                    vector<int> core_in_support);
+
+  shared_ptr<LocalSupportVector>
+  MyAssembleGivenLocalSupportVector(shared_ptr<FESpace> fes,
+                                    shared_ptr<LinearFormIntegrator> lfi,
                                     vector<int> core_elements,
                                     vector<int> support_elements,
                                     vector<int> core_dofs,

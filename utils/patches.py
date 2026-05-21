@@ -51,7 +51,11 @@ def build_support_patch(fes, core_elements) -> LocalSupportPatch:
             == A_global[core_dofs, core_dofs]
 
     up to roundoff. The full support matrix is not required to match the
-    algebraic global submatrix on ``support_dofs``.
+    algebraic global submatrix on ``support_dofs``. The same support closure
+    also gives the corresponding exact core entries for a linear right-hand
+    side:
+
+        b_support[core_in_support] == b_global[core_dofs]
     """
     core_elements = sorted({int(elnr) for elnr in core_elements})
     core_dofs = dofs_of_elements(fes, core_elements)
