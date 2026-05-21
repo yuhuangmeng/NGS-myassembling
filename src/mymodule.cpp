@@ -23,24 +23,14 @@ PYBIND11_MODULE(myassembling, m)
          &ngcomp::MyAssembleMatrix,
          py::arg("fes"),py::arg("integrator"));
 
-  m.def ("MyBuildLocalSupportPatch",
-         &ngcomp::MyBuildLocalSupportPatch,
-         py::arg("fes"), py::arg("core_elements"),
-         R"raw_string(Build the exact support closure for a core element set.
+  m.def ("MyAssembleGivenLocalSupportMatrix",
+         &ngcomp::MyAssembleGivenLocalSupportMatrix,
+         py::arg("fes"), py::arg("integrator"),
+         py::arg("core_elements"), py::arg("support_elements"),
+         py::arg("core_dofs"), py::arg("support_dofs"),
+         py::arg("core_in_support"),
+         R"raw_string(Assemble a Python-supplied local support matrix.
 
-support_elements are all elements whose dof list intersects core_dofs.
-The invariant support_dofs[core_in_support[i]] == core_dofs[i] holds.)raw_string");
-
-  m.def ("MyAssembleLocalSupportMatrix",
-         &ngcomp::MyAssembleLocalSupportMatrix,
-         py::arg("fes"), py::arg("integrator"), py::arg("core_elements"),
-         R"raw_string(Assemble the support-closure local matrix.
-
-The returned support matrix is assembled only over support_elements. Its
-core-core block equals the corresponding globally assembled core-core block up
-to roundoff.)raw_string");
-
-  m.def ("MyAssembleLocalSupportMatrices",
-         &ngcomp::MyAssembleLocalSupportMatrices,
-         py::arg("fes"), py::arg("integrator"), py::arg("partition"));
+Python constructs the support patch and index maps. C++ only assembles over
+support_elements using support_dofs as the local numbering.)raw_string");
 }    

@@ -28,31 +28,22 @@ namespace ngcomp
                    shared_ptr<BilinearFormIntegrator> bfi);
 
   /*
-    Build the exact support closure of a local cell partition.
+    Low-level assembly kernel for a supplied local support patch.
 
-    core_dofs are all global dofs appearing on core_elements. support_elements
-    are all volume elements whose dof list intersects core_dofs. Assembling on
-    this support closure exactly reproduces the global core-core matrix block:
-
-      A_support[core_in_support, core_in_support]
-        == A_global[core_dofs, core_dofs]
-
-    up to roundoff. The full support matrix is not expected to equal the
-    algebraic global submatrix on support_dofs.
+    The caller provides the support closure and all index maps:
+    core_elements, support_elements, core_dofs, support_dofs, and
+    core_in_support. This C++ routine does not decide what the support patch is;
+    it only assembles element matrices over support_elements and writes them
+    into the local numbering defined by support_dofs.
   */
   shared_ptr<LocalSupportMatrix>
-  MyBuildLocalSupportPatch(shared_ptr<FESpace> fes,
-                           vector<int> core_elements);
-
-  shared_ptr<LocalSupportMatrix>
-  MyAssembleLocalSupportMatrix(shared_ptr<FESpace> fes,
-                               shared_ptr<BilinearFormIntegrator> bfi,
-                               vector<int> core_elements);
-
-  vector<shared_ptr<LocalSupportMatrix>>
-  MyAssembleLocalSupportMatrices(shared_ptr<FESpace> fes,
-                                 shared_ptr<BilinearFormIntegrator> bfi,
-                                 vector<vector<int>> partition);
+  MyAssembleGivenLocalSupportMatrix(shared_ptr<FESpace> fes,
+                                    shared_ptr<BilinearFormIntegrator> bfi,
+                                    vector<int> core_elements,
+                                    vector<int> support_elements,
+                                    vector<int> core_dofs,
+                                    vector<int> support_dofs,
+                                    vector<int> core_in_support);
     
   shared_ptr<BaseVector>
   MyAssembleVector(shared_ptr<FESpace> fes,
