@@ -5,15 +5,13 @@
 
 
 /*
-  
+
 My own simple integrators for the Poisson Equation
 
 */
 
 namespace ngfem
 {
-
-
   // integrator for \int f v dx
   class MySourceIntegrator : public LinearFormIntegrator
   {
@@ -25,18 +23,14 @@ namespace ngfem
     string Name () const override { return "MySource"; }
 
     VorB VB() const override { return VOL; }
-    
+
     // Calculates the element source vector
     void CalcElementVector (const FiniteElement & fel,
-                            const ElementTransformation & trafo, 
+                            const ElementTransformation & trafo,
                             FlatVector<double> elvec,
                             LocalHeap & lh) const override;
   };
 
-
-
-
-  
   // integrator for \int \lambda(x) \nabla u \nabla v dx
   class MyLaplaceIntegrator : public BilinearFormIntegrator
   {
@@ -52,7 +46,7 @@ namespace ngfem
 
     // Calculates the element matrix
     void CalcElementMatrix (const FiniteElement & fel,
-                            const ElementTransformation & trafo, 
+                            const ElementTransformation & trafo,
                             FlatMatrix<double> elmat,
                             LocalHeap & lh) const override;
   };

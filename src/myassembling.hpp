@@ -13,22 +13,14 @@
 
 namespace ngcomp
 {
-  enum class OverlapMode
-  {
-    FACET,
-    VERTEX
-  };
-
-  struct LocalPatchMatrix
+  struct LocalSupportMatrix
   {
     shared_ptr<BaseSparseMatrix> mat;
     vector<int> core_elements;
-    vector<int> overlap_elements;
+    vector<int> support_elements;
     vector<int> core_dofs;
-    vector<int> overlap_dofs;
-    vector<int> core_local_dofs;
-    string overlap_mode;
-    int overlap_layers = 0;
+    vector<int> support_dofs;
+    vector<int> core_in_support;
   };
   
   shared_ptr<BaseSparseMatrix>
@@ -36,51 +28,31 @@ namespace ngcomp
                    shared_ptr<BilinearFormIntegrator> bfi);
 
   /*
-    Assemble an element-based overlapping Schwarz local matrix.
+    Build the exact support closure of a local cell partition.
 
-    core_elements are the non-overlapping cell subdomain, for example from a
-    METIS cell partition. overlap_layers counts layers in the cell adjacency
-    graph induced by shared facets by default. In 2D triangular meshes, this is
-    shared-edge expansion. The optional VERTEX mode builds a wider vertex-patch
-    overlap and is not the recommended default.
+    core_dofs are all global dofs appearing on core_elements. support_elements
+    are all volume elements whose dof list intersects core_dofs. Assembling on
+    this support closure exactly reproduces the global core-core matrix block:
 
-    The matrix is reassembled over overlap_elements and compressed to
-    overlap-local dof numbering. It is not an algebraic submatrix of a
-    previously assembled global matrix.
+      A_support[core_in_support, core_in_support]
+        == A_global[core_dofs, core_dofs]
+
+    up to roundoff. The full support matrix is not expected to equal the
+    algebraic global submatrix on support_dofs.
   */
-  shared_ptr<LocalPatchMatrix>
-  MyAssembleLocalPatchMatrix(shared_ptr<FESpace> fes,
-                             shared_ptr<BilinearFormIntegrator> bfi,
-                             vector<int> core_elements,
-                             int overlap_layers = 1,
-                             OverlapMode overlap_mode = OverlapMode::FACET,
-                             bool verbose = false);
+  shared_ptr<LocalSupportMatrix>
+  MyBuildLocalSupportPatch(shared_ptr<FESpace> fes,
+                           vector<int> core_elements);
 
-  shared_ptr<LocalPatchMatrix>
-  MyAssembleGivenLocalPatchMatrix(shared_ptr<FESpace> fes,
-                                  shared_ptr<BilinearFormIntegrator> bfi,
-                                  vector<int> core_elements,
-                                  vector<int> overlap_elements,
-                                  bool verbose = false);
-
-  /*
-    Assemble one local matrix per core subdomain. The default FACET mode is the
-    standard cell-neighbor overlap for element-based domain decomposition.
-  */
-  vector<shared_ptr<LocalPatchMatrix>>
-  MyAssembleLocalPatchMatrices(shared_ptr<FESpace> fes,
+  shared_ptr<LocalSupportMatrix>
+  MyAssembleLocalSupportMatrix(shared_ptr<FESpace> fes,
                                shared_ptr<BilinearFormIntegrator> bfi,
-                               vector<vector<int>> partition,
-                               int overlap_layers = 1,
-                               OverlapMode overlap_mode = OverlapMode::FACET,
-                               bool verbose = false);
+                               vector<int> core_elements);
 
-  vector<shared_ptr<LocalPatchMatrix>>
-  MyAssembleGivenLocalPatchMatrices(shared_ptr<FESpace> fes,
-                                    shared_ptr<BilinearFormIntegrator> bfi,
-                                    vector<vector<int>> core_partition,
-                                    vector<vector<int>> overlap_partition,
-                                    bool verbose = false);
+  vector<shared_ptr<LocalSupportMatrix>>
+  MyAssembleLocalSupportMatrices(shared_ptr<FESpace> fes,
+                                 shared_ptr<BilinearFormIntegrator> bfi,
+                                 vector<vector<int>> partition);
     
   shared_ptr<BaseVector>
   MyAssembleVector(shared_ptr<FESpace> fes,
