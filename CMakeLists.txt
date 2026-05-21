@@ -5,7 +5,7 @@
 # make sure the module_name matches the first argument of PYBIND11_MODULE
 set(module_name myassembling)
 
-set(source_files src/myassembling.cpp src/myintegrator.cpp src/mymodule.cpp)
+set(source_files src/myassembling.cpp src/mymodule.cpp)
 
 ###############################################################################
 # Don't change anything below this line (unless you know what you are doing!)
