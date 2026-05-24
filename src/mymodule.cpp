@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 
 #include "myassembling.hpp"
+#include "myassembling_nonlinear.hpp"
 
 
 PYBIND11_MODULE(myassembling, m)
@@ -58,4 +59,8 @@ support_elements using support_dofs as the local numbering.)raw_string");
 
 Python constructs the support patch and index maps. C++ only assembles over
 support_elements using support_dofs as the local numbering.)raw_string");
+
+  m.def ("NonlinearAssemblyStatus",
+         &ngcomp::NonlinearAssemblyStatus,
+         R"raw_string(Return the current status of nonlinear local assembly support.)raw_string");
 }    

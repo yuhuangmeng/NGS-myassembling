@@ -56,6 +56,11 @@ def build_support_patch(fes, core_elements) -> LocalSupportPatch:
     side:
 
         b_support[core_in_support] == b_global[core_dofs]
+
+    The same support closure is used in the nonlinear verification notebook for
+    restricted residual and Jacobian checks. There the nonlinear objects are
+    still global-size NGSolve forms, restricted to ``support_elements`` for
+    verification.
     """
     core_elements = sorted({int(elnr) for elnr in core_elements})
     core_dofs = dofs_of_elements(fes, core_elements)
