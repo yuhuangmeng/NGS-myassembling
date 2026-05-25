@@ -62,7 +62,29 @@ Python constructs the support patch and index maps. C++ assembles over
 support_elements and returns the core entries using core_dofs as the local
 numbering.)raw_string");
 
-  m.def ("NonlinearAssemblyStatus",
-         &ngcomp::NonlinearAssemblyStatus,
-         R"raw_string(Return the current status of nonlinear local assembly support.)raw_string");
+  m.def ("MyAssembleNonlinearLocalResidual",
+         &ngcomp::MyAssembleNonlinearLocalResidual,
+         py::arg("fes"), py::arg("a"), py::arg("u"),
+         py::arg("core_elements"), py::arg("support_elements"),
+         py::arg("core_dofs"), py::arg("support_dofs"),
+         py::arg("core_in_support"),
+         R"raw_string(Assemble a local nonlinear residual over supplied VOL patch elements.
+
+Python supplies the same support patch metadata as the linear local assembler.
+The current solution vector u is a global NGSolve vector. C++ assembles over
+support_elements and returns the core entries using core_dofs as the local
+numbering.)raw_string");
+
+  m.def ("MyAssembleNonlinearLocalJacobian",
+         &ngcomp::MyAssembleNonlinearLocalJacobian,
+         py::arg("fes"), py::arg("a"), py::arg("u"),
+         py::arg("core_elements"), py::arg("support_elements"),
+         py::arg("core_dofs"), py::arg("support_dofs"),
+         py::arg("core_in_support"),
+         R"raw_string(Assemble a local nonlinear Jacobian over supplied VOL patch elements.
+
+Python supplies the same support patch metadata as the linear local assembler.
+The current solution vector u is a global NGSolve vector. C++ assembles over
+support_elements and returns the core-core Jacobian using core_dofs as the
+local numbering.)raw_string");
 }    
