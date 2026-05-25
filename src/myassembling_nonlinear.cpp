@@ -44,86 +44,7 @@ namespace ngcomp
     }
   }
 
-  shared_ptr<BaseVector>
-  MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
-                                   shared_ptr<BilinearForm> a,
-                                   const BaseVector & u,
-                                   std::vector<int> core_elements,
-                                   std::vector<int> support_elements,
-                                   std::vector<int> core_dofs,
-                                   std::vector<int> support_dofs,
-                                   std::vector<int> core_in_support)
-  {
-    CheckSupportedProblem(fes, a);
-    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support =
-      detail::BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core =
-      detail::BuildGlobalToLocal(fes, core_dofs);
-
-    auto ma = fes->GetMeshAccess();
-    detail::CheckElementNumbers(ma, core_elements, "core_elements");
-    detail::CheckElementNumbers(ma, support_elements, "support_elements");
-
-    int dim = fes->GetDimension();
-    auto local_res = make_shared<VVector<double>>(core_dofs.size() * dim);
-    local_res->SetScalar(0.0);
-    auto local_fv = local_res->FV<double>();
-
-    LocalHeap lh(1000*1000);
-    Array<int> dnums;
-
-    for (int elnr : support_elements)
-      {
-        HeapReset hr(lh);
-        ElementId ei(VOL, elnr);
-
-        if (!fes->DefinedOn(ei))
-          continue;
-
-        const FiniteElement & fel = fes->GetFE(ei, lh);
-        ElementTransformation & eltrans = ma->GetTrafo(ei, lh);
-        fes->GetDofNrs(ei, dnums);
-        CheckElementDofsInSupport(dnums, global_to_support);
-
-        int elsize = dnums.Size() * dim;
-        FlatVector<double> elvecx(elsize, lh);
-        FlatVector<double> elvecy(elsize, lh);
-
-        // Matches S_BilinearForm::AddMatrix1: x.GetIndirect(dnums, elvecx).
-        u.GetIndirect(dnums, elvecx);
-
-        // Matches S_BilinearForm::AddMatrix1: TransformVec(..., TRANSFORM_SOL).
-        fes->TransformVec(ei, elvecx, TRANSFORM_SOL);
-
-        for (auto bfi : a->Integrators())
-          {
-            if (!bfi->DefinedOn(eltrans.GetElementIndex())) continue;
-            if (!bfi->DefinedOnElement(ei.Nr())) continue;
-
-            auto & mapped_trafo = eltrans.AddDeformation(bfi->GetDeformation().get(), lh);
-
-            // Matches S_BilinearForm::AddMatrix1: nonlinear element residual.
-            bfi->ApplyElementMatrix(fel, mapped_trafo, elvecx, elvecy, 0, lh);
-
-            // Matches S_BilinearForm::AddMatrix1: TransformVec(..., TRANSFORM_RHS).
-            fes->TransformVec(ei, elvecy, TRANSFORM_RHS);
-
-            for (int i = 0; i < dnums.Size(); i++)
-              {
-                int ldof = detail::LocalDof(dnums[i], global_to_core);
-                if (ldof < 0)
-                  continue;
-                for (int c = 0; c < dim; c++)
-                  local_fv(dim*ldof+c) += elvecy(dim*i+c);
-              }
-          }
-      }
-
-    return local_res;
-  }
-
-  shared_ptr<BaseSparseMatrix>
+  shared_ptr<LocalMatrix>
   MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
@@ -215,7 +136,96 @@ namespace ngcomp
           }
       }
 
-    return SparseMatrix<double>::CreateFromCOO(rows, cols, vals,
-                                               local_size, local_size);
+    auto result = make_shared<LocalMatrix>();
+    result->mat = SparseMatrix<double>::CreateFromCOO(rows, cols, vals,
+                                                      local_size, local_size);
+    detail::FillPatchMetadata(*result, core_elements, support_elements,
+                              core_dofs, support_dofs, core_in_support);
+
+    return result;
+  }
+
+  shared_ptr<LocalVector>
+  MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
+                                   shared_ptr<BilinearForm> a,
+                                   const BaseVector & u,
+                                   std::vector<int> core_elements,
+                                   std::vector<int> support_elements,
+                                   std::vector<int> core_dofs,
+                                   std::vector<int> support_dofs,
+                                   std::vector<int> core_in_support)
+  {
+    CheckSupportedProblem(fes, a);
+    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support =
+      detail::BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core =
+      detail::BuildGlobalToLocal(fes, core_dofs);
+
+    auto ma = fes->GetMeshAccess();
+    detail::CheckElementNumbers(ma, core_elements, "core_elements");
+    detail::CheckElementNumbers(ma, support_elements, "support_elements");
+
+    int dim = fes->GetDimension();
+    auto local_res = make_shared<VVector<double>>(core_dofs.size() * dim);
+    local_res->SetScalar(0.0);
+    auto local_fv = local_res->FV<double>();
+
+    LocalHeap lh(1000*1000);
+    Array<int> dnums;
+
+    for (int elnr : support_elements)
+      {
+        HeapReset hr(lh);
+        ElementId ei(VOL, elnr);
+
+        if (!fes->DefinedOn(ei))
+          continue;
+
+        const FiniteElement & fel = fes->GetFE(ei, lh);
+        ElementTransformation & eltrans = ma->GetTrafo(ei, lh);
+        fes->GetDofNrs(ei, dnums);
+        CheckElementDofsInSupport(dnums, global_to_support);
+
+        int elsize = dnums.Size() * dim;
+        FlatVector<double> elvecx(elsize, lh);
+        FlatVector<double> elvecy(elsize, lh);
+
+        // Matches S_BilinearForm::AddMatrix1: x.GetIndirect(dnums, elvecx).
+        u.GetIndirect(dnums, elvecx);
+
+        // Matches S_BilinearForm::AddMatrix1: TransformVec(..., TRANSFORM_SOL).
+        fes->TransformVec(ei, elvecx, TRANSFORM_SOL);
+
+        for (auto bfi : a->Integrators())
+          {
+            if (!bfi->DefinedOn(eltrans.GetElementIndex())) continue;
+            if (!bfi->DefinedOnElement(ei.Nr())) continue;
+
+            auto & mapped_trafo = eltrans.AddDeformation(bfi->GetDeformation().get(), lh);
+
+            // Matches S_BilinearForm::AddMatrix1: nonlinear element residual.
+            bfi->ApplyElementMatrix(fel, mapped_trafo, elvecx, elvecy, 0, lh);
+
+            // Matches S_BilinearForm::AddMatrix1: TransformVec(..., TRANSFORM_RHS).
+            fes->TransformVec(ei, elvecy, TRANSFORM_RHS);
+
+            for (int i = 0; i < dnums.Size(); i++)
+              {
+                int ldof = detail::LocalDof(dnums[i], global_to_core);
+                if (ldof < 0)
+                  continue;
+                for (int c = 0; c < dim; c++)
+                  local_fv(dim*ldof+c) += elvecy(dim*i+c);
+              }
+          }
+      }
+
+    auto result = make_shared<LocalVector>();
+    result->vec = local_res;
+    detail::FillPatchMetadata(*result, core_elements, support_elements,
+                              core_dofs, support_dofs, core_in_support);
+
+    return result;
   }
 }

@@ -31,8 +31,8 @@
 
 namespace ngcomp
 {
-  shared_ptr<BaseVector>
-  MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
+  shared_ptr<LocalMatrix>
+  MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
                                    std::vector<int> core_elements,
@@ -41,8 +41,8 @@ namespace ngcomp
                                    std::vector<int> support_dofs,
                                    std::vector<int> core_in_support);
 
-  shared_ptr<BaseSparseMatrix>
-  MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
+  shared_ptr<LocalVector>
+  MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
                                    std::vector<int> core_elements,

@@ -62,19 +62,6 @@ Python constructs the support patch and index maps. C++ assembles over
 support_elements and returns the core entries using core_dofs as the local
 numbering.)raw_string");
 
-  m.def ("MyAssembleLocalNonlinearResidual",
-         &ngcomp::MyAssembleLocalNonlinearResidual,
-         py::arg("fes"), py::arg("a"), py::arg("u"),
-         py::arg("core_elements"), py::arg("support_elements"),
-         py::arg("core_dofs"), py::arg("support_dofs"),
-         py::arg("core_in_support"),
-         R"raw_string(Assemble a local nonlinear residual over supplied VOL patch elements.
-
-Python supplies the same support patch metadata as the linear local assembler.
-The current solution vector u is a global NGSolve vector. C++ assembles over
-support_elements and returns the core entries using core_dofs as the local
-numbering.)raw_string");
-
   m.def ("MyAssembleLocalNonlinearJacobian",
          &ngcomp::MyAssembleLocalNonlinearJacobian,
          py::arg("fes"), py::arg("a"), py::arg("u"),
@@ -85,6 +72,19 @@ numbering.)raw_string");
 
 Python supplies the same support patch metadata as the linear local assembler.
 The current solution vector u is a global NGSolve vector. C++ assembles over
-support_elements and returns the core-core Jacobian using core_dofs as the
-local numbering.)raw_string");
+support_elements and returns a LocalMatrix whose mat stores the core-core
+Jacobian using core_dofs as the local numbering.)raw_string");
+
+  m.def ("MyAssembleLocalNonlinearResidual",
+         &ngcomp::MyAssembleLocalNonlinearResidual,
+         py::arg("fes"), py::arg("a"), py::arg("u"),
+         py::arg("core_elements"), py::arg("support_elements"),
+         py::arg("core_dofs"), py::arg("support_dofs"),
+         py::arg("core_in_support"),
+         R"raw_string(Assemble a local nonlinear residual over supplied VOL patch elements.
+
+Python supplies the same support patch metadata as the linear local assembler.
+The current solution vector u is a global NGSolve vector. C++ assembles over
+support_elements and returns a LocalVector whose vec stores the core entries
+using core_dofs as the local numbering.)raw_string");
 }
