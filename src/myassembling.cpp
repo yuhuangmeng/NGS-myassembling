@@ -23,18 +23,18 @@ namespace ngcomp
         throw Exception("Volume element number out of range: " + ToString(elnr));
     }
 
-    map<int, int> BuildGlobalToSupport(shared_ptr<FESpace> fes,
-                                       const vector<int> & support_dofs)
+    map<int, int> BuildGlobalToLocal(shared_ptr<FESpace> fes,
+                                     const vector<int> & dofs)
     {
-      map<int, int> global_to_support;
-      for (size_t i = 0; i < support_dofs.size(); i++)
+      map<int, int> global_to_local;
+      for (size_t i = 0; i < dofs.size(); i++)
         {
-          int d = support_dofs[i];
+          int d = dofs[i];
           if (d < 0 || d >= fes->GetNDof())
-            throw Exception("support_dofs contains invalid dof: " + ToString(d));
-          global_to_support[d] = int(i);
+            throw Exception("local dof list contains invalid global dof: " + ToString(d));
+          global_to_local[d] = int(i);
         }
-      return global_to_support;
+      return global_to_local;
     }
 
     void CheckSupportMetadata(const vector<int> & core_dofs,
@@ -104,14 +104,14 @@ namespace ngcomp
   }
 
 
-  shared_ptr<LocalSupportMatrix>
-  MyAssembleGivenLocalSupportMatrix(shared_ptr<FESpace> fes,
-                                    shared_ptr<BilinearFormIntegrator> bfi,
-                                    vector<int> core_elements,
-                                    vector<int> support_elements,
-                                    vector<int> core_dofs,
-                                    vector<int> support_dofs,
-                                    vector<int> core_in_support)
+  shared_ptr<LocalMatrix>
+  MyAssembleLocalMatrix(shared_ptr<FESpace> fes,
+                        shared_ptr<BilinearFormIntegrator> bfi,
+                        vector<int> core_elements,
+                        vector<int> support_elements,
+                        vector<int> core_dofs,
+                        vector<int> support_dofs,
+                        vector<int> core_in_support)
   {
     auto ma = fes->GetMeshAccess();
 
@@ -121,17 +121,19 @@ namespace ngcomp
       CheckElementNumber(ma, elnr);
 
     CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support = BuildGlobalToSupport(fes, support_dofs);
+    auto global_to_support = BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core = BuildGlobalToLocal(fes, core_dofs);
 
     Array<int> rows, cols;
     Array<double> vals;
-    Array<int> dnums, ldnums;
+    Array<int> dnums, core_ldnums;
     LocalHeap lh(1000*1000);
 
     /*
       Low-level support-patch assembly kernel. The support patch itself is
-      constructed in Python; this loop only assembles element matrices over the
-      supplied support_elements using the supplied support_dofs numbering.
+      constructed in Python; this loop assembles element matrices over the
+      supplied support_elements but scatters only core rows and columns into
+      the local numbering defined by core_dofs.
     */
     for (int elnr : support_elements)
       {
@@ -141,16 +143,23 @@ namespace ngcomp
         FiniteElement & fel = fes->GetFE(ei, lh);
         fes->GetDofNrs(ei, dnums);
 
-        ldnums.SetSize(dnums.Size());
+        core_ldnums.SetSize(dnums.Size());
         for (int i = 0; i < dnums.Size(); i++)
           {
-            auto it = global_to_support.find(dnums[i]);
             if (dnums[i] < 0)
-              ldnums[i] = -1;
-            else if (it == global_to_support.end())
+              {
+                core_ldnums[i] = -1;
+                continue;
+              }
+
+            if (global_to_support.find(dnums[i]) == global_to_support.end())
               throw Exception("Element dof is missing from supplied support_dofs");
+
+            auto it_core = global_to_core.find(dnums[i]);
+            if (it_core == global_to_core.end())
+              core_ldnums[i] = -1;
             else
-              ldnums[i] = it->second;
+              core_ldnums[i] = it_core->second;
           }
 
         const ElementTransformation & trafo = ma->GetTrafo(ei, lh);
@@ -158,21 +167,21 @@ namespace ngcomp
         FlatMatrix<> elmat(fel.GetNDof(), lh);
         bfi->CalcElementMatrix(fel, trafo, elmat, lh);
 
-        for (int i = 0; i < ldnums.Size(); i++)
-          if (ldnums[i] >= 0)
-            for (int j = 0; j < ldnums.Size(); j++)
-              if (ldnums[j] >= 0)
+        for (int i = 0; i < core_ldnums.Size(); i++)
+          if (core_ldnums[i] >= 0)
+            for (int j = 0; j < core_ldnums.Size(); j++)
+              if (core_ldnums[j] >= 0)
                 {
-                  rows.Append(ldnums[i]);
-                  cols.Append(ldnums[j]);
+                  rows.Append(core_ldnums[i]);
+                  cols.Append(core_ldnums[j]);
                   vals.Append(elmat(i, j));
                 }
       }
 
-    auto result = make_shared<LocalSupportMatrix>();
+    auto result = make_shared<LocalMatrix>();
     result->mat = SparseMatrix<double>::CreateFromCOO(rows, cols, vals,
-                                                      support_dofs.size(),
-                                                      support_dofs.size());
+                                                      core_dofs.size(),
+                                                      core_dofs.size());
     result->core_elements = std::move(core_elements);
     result->support_elements = std::move(support_elements);
     result->core_dofs = std::move(core_dofs);
@@ -183,14 +192,14 @@ namespace ngcomp
   }
 
 
-  shared_ptr<LocalSupportVector>
-  MyAssembleGivenLocalSupportVector(shared_ptr<FESpace> fes,
-                                    shared_ptr<LinearFormIntegrator> lfi,
-                                    vector<int> core_elements,
-                                    vector<int> support_elements,
-                                    vector<int> core_dofs,
-                                    vector<int> support_dofs,
-                                    vector<int> core_in_support)
+  shared_ptr<LocalVector>
+  MyAssembleLocalVector(shared_ptr<FESpace> fes,
+                        shared_ptr<LinearFormIntegrator> lfi,
+                        vector<int> core_elements,
+                        vector<int> support_elements,
+                        vector<int> core_dofs,
+                        vector<int> support_dofs,
+                        vector<int> core_in_support)
   {
     auto ma = fes->GetMeshAccess();
 
@@ -200,9 +209,10 @@ namespace ngcomp
       CheckElementNumber(ma, elnr);
 
     CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support = BuildGlobalToSupport(fes, support_dofs);
+    auto global_to_support = BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core = BuildGlobalToLocal(fes, core_dofs);
 
-    auto vec = make_shared<VVector<double>> (support_dofs.size());
+    auto vec = make_shared<VVector<double>> (core_dofs.size());
     vec->SetScalar(0.0);
     auto local_vec = vec->FV<double>();
 
@@ -212,7 +222,8 @@ namespace ngcomp
     /*
       Low-level support-patch vector assembly kernel. Python supplies the
       support patch; C++ only assembles element vectors over support_elements
-      using support_dofs as the local numbering.
+      and scatters only core entries into the local numbering defined by
+      core_dofs.
     */
     for (int elnr : support_elements)
       {
@@ -231,14 +242,17 @@ namespace ngcomp
           {
             if (dnums[i] < 0)
               continue;
-            auto it = global_to_support.find(dnums[i]);
-            if (it == global_to_support.end())
+            if (global_to_support.find(dnums[i]) == global_to_support.end())
               throw Exception("Element dof is missing from supplied support_dofs");
-            local_vec(it->second) += elvec(i);
+
+            auto it_core = global_to_core.find(dnums[i]);
+            if (it_core == global_to_core.end())
+              continue;
+            local_vec(it_core->second) += elvec(i);
           }
       }
 
-    auto result = make_shared<LocalSupportVector>();
+    auto result = make_shared<LocalVector>();
     result->vec = vec;
     result->core_elements = std::move(core_elements);
     result->support_elements = std::move(support_elements);
