@@ -1,9 +1,8 @@
-#ifndef FILE_MYASSEMBLING_HPP
-#define FILE_MYASSEMBLING_HPP
+#ifndef FILE_MYASSEMBLING_LINEAR_HPP
+#define FILE_MYASSEMBLING_LINEAR_HPP
 
 
-#include <comp.hpp>
-#include <vector>
+#include "myassembling_common.hpp"
 
 
 /*
@@ -13,26 +12,6 @@
 
 namespace ngcomp
 {
-  struct LocalMatrix
-  {
-    shared_ptr<BaseSparseMatrix> mat;
-    vector<int> core_elements;
-    vector<int> support_elements;
-    vector<int> core_dofs;
-    vector<int> support_dofs;
-    vector<int> core_in_support;
-  };
-
-  struct LocalVector
-  {
-    shared_ptr<BaseVector> vec;
-    vector<int> core_elements;
-    vector<int> support_elements;
-    vector<int> core_dofs;
-    vector<int> support_dofs;
-    vector<int> core_in_support;
-  };
-
   shared_ptr<BaseSparseMatrix>
   MyAssembleMatrix(shared_ptr<FESpace> fes,
                    shared_ptr<BilinearFormIntegrator> bfi);

@@ -2,7 +2,7 @@
 #include <python_comp.hpp>
 #include <pybind11/stl.h>
 
-#include "myassembling.hpp"
+#include "myassembling_linear.hpp"
 #include "myassembling_nonlinear.hpp"
 
 
@@ -29,7 +29,7 @@ PYBIND11_MODULE(myassembling, m)
     .def_readonly("support_dofs", &ngcomp::LocalVector::support_dofs)
     .def_readonly("core_in_support", &ngcomp::LocalVector::core_in_support)
     ;
-  
+
   m.def ("MyAssembleMatrix",
          &ngcomp::MyAssembleMatrix,
          py::arg("fes"),py::arg("integrator"));
@@ -87,4 +87,4 @@ Python supplies the same support patch metadata as the linear local assembler.
 The current solution vector u is a global NGSolve vector. C++ assembles over
 support_elements and returns the core-core Jacobian using core_dofs as the
 local numbering.)raw_string");
-}    
+}

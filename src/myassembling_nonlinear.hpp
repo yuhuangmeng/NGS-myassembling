@@ -1,9 +1,7 @@
 #ifndef FILE_MYASSEMBLING_NONLINEAR_HPP
 #define FILE_MYASSEMBLING_NONLINEAR_HPP
 
-#include <comp.hpp>
-#include <string>
-#include <vector>
+#include "myassembling_common.hpp"
 
 /*
   Local nonlinear assembler for verification and patch/subdomain experiments.

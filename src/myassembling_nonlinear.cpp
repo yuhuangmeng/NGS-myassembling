@@ -2,6 +2,8 @@
 
 namespace ngcomp
 {
+  namespace detail = ngcomp::myassembling_detail;
+
   namespace
   {
     void CheckSupportedProblem(shared_ptr<FESpace> fes,
@@ -32,58 +34,13 @@ namespace ngcomp
         }
     }
 
-    void CheckElementNumber(shared_ptr<MeshAccess> ma, int elnr)
-    {
-      if (elnr < 0 || elnr >= ma->GetNE(VOL))
-        throw Exception("AssembleNonlinearLocal: volume element number out of range: " + ToString(elnr));
-    }
-
-    std::vector<int> BuildGlobalToLocal(shared_ptr<FESpace> fes,
-                                        const std::vector<int> & dofs)
-    {
-      std::vector<int> global_to_local(fes->GetNDof(), -1);
-      for (size_t i = 0; i < dofs.size(); i++)
-        {
-          int gdof = dofs[i];
-          if (gdof < 0 || gdof >= fes->GetNDof())
-            throw Exception("AssembleNonlinearLocal: local dof list contains an invalid global dof");
-          global_to_local[gdof] = int(i);
-        }
-      return global_to_local;
-    }
-
-    void CheckSupportMetadata(const std::vector<int> & core_dofs,
-                              const std::vector<int> & support_dofs,
-                              const std::vector<int> & core_in_support)
-    {
-      if (core_in_support.size() != core_dofs.size())
-        throw Exception("AssembleNonlinearLocal: core_in_support and core_dofs must have the same length");
-
-      for (size_t i = 0; i < core_dofs.size(); i++)
-        {
-          int local = core_in_support[i];
-          if (local < 0 || local >= int(support_dofs.size()))
-            throw Exception("AssembleNonlinearLocal: core_in_support index out of range");
-          if (support_dofs[local] != core_dofs[i])
-            throw Exception("AssembleNonlinearLocal: support_dofs[core_in_support[i]] must equal core_dofs[i]");
-        }
-    }
-
     void CheckElementDofsInSupport(const Array<int> & dnums,
                                    const std::vector<int> & global_to_support)
     {
       for (int i = 0; i < dnums.Size(); i++)
-        if (dnums[i] >= 0 && global_to_support[dnums[i]] < 0)
+        if (dnums[i] >= 0 &&
+            detail::LocalDof(dnums[i], global_to_support) < 0)
           throw Exception("AssembleNonlinearLocal: element dof is missing from supplied support_dofs");
-    }
-
-    int LocalDof(int gdof, const std::vector<int> & global_to_local)
-    {
-      if (gdof < 0)
-        return -1;
-      if (size_t(gdof) >= global_to_local.size())
-        throw Exception("AssembleNonlinearLocal: element dof is outside global_to_local map");
-      return global_to_local[gdof];
     }
   }
 
@@ -98,15 +55,15 @@ namespace ngcomp
                                    std::vector<int> core_in_support)
   {
     CheckSupportedProblem(fes, a);
-    CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support = BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core = BuildGlobalToLocal(fes, core_dofs);
+    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support =
+      detail::BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core =
+      detail::BuildGlobalToLocal(fes, core_dofs);
 
     auto ma = fes->GetMeshAccess();
-    for (int elnr : core_elements)
-      CheckElementNumber(ma, elnr);
-    for (int elnr : support_elements)
-      CheckElementNumber(ma, elnr);
+    detail::CheckElementNumbers(ma, core_elements, "core_elements");
+    detail::CheckElementNumbers(ma, support_elements, "support_elements");
 
     int dim = fes->GetDimension();
     auto local_res = make_shared<VVector<double>>(core_dofs.size() * dim);
@@ -154,7 +111,7 @@ namespace ngcomp
 
             for (int i = 0; i < dnums.Size(); i++)
               {
-                int ldof = LocalDof(dnums[i], global_to_core);
+                int ldof = detail::LocalDof(dnums[i], global_to_core);
                 if (ldof < 0)
                   continue;
                 for (int c = 0; c < dim; c++)
@@ -177,15 +134,15 @@ namespace ngcomp
                                    std::vector<int> core_in_support)
   {
     CheckSupportedProblem(fes, a);
-    CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support = BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core = BuildGlobalToLocal(fes, core_dofs);
+    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support =
+      detail::BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core =
+      detail::BuildGlobalToLocal(fes, core_dofs);
 
     auto ma = fes->GetMeshAccess();
-    for (int elnr : core_elements)
-      CheckElementNumber(ma, elnr);
-    for (int elnr : support_elements)
-      CheckElementNumber(ma, elnr);
+    detail::CheckElementNumbers(ma, core_elements, "core_elements");
+    detail::CheckElementNumbers(ma, support_elements, "support_elements");
 
     int dim = fes->GetDimension();
     int local_size = int(core_dofs.size()) * dim;
@@ -239,12 +196,12 @@ namespace ngcomp
 
         for (int i = 0; i < dnums.Size(); i++)
           {
-            int li = LocalDof(dnums[i], global_to_core);
+            int li = detail::LocalDof(dnums[i], global_to_core);
             if (li < 0)
               continue;
             for (int j = 0; j < dnums.Size(); j++)
               {
-                int lj = LocalDof(dnums[j], global_to_core);
+                int lj = detail::LocalDof(dnums[j], global_to_core);
                 if (lj < 0)
                   continue;
                 for (int ci = 0; ci < dim; ci++)

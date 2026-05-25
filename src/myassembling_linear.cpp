@@ -10,50 +10,11 @@
   The result is a sparse matrix
 */
 
-#include "myassembling.hpp"
-#include <map>
+#include "myassembling_linear.hpp"
 
 namespace ngcomp
 {
-  namespace
-  {
-    void CheckElementNumber(shared_ptr<MeshAccess> ma, int elnr)
-    {
-      if (elnr < 0 || elnr >= ma->GetNE(VOL))
-        throw Exception("Volume element number out of range: " + ToString(elnr));
-    }
-
-    map<int, int> BuildGlobalToLocal(shared_ptr<FESpace> fes,
-                                     const vector<int> & dofs)
-    {
-      map<int, int> global_to_local;
-      for (size_t i = 0; i < dofs.size(); i++)
-        {
-          int d = dofs[i];
-          if (d < 0 || d >= fes->GetNDof())
-            throw Exception("local dof list contains invalid global dof: " + ToString(d));
-          global_to_local[d] = int(i);
-        }
-      return global_to_local;
-    }
-
-    void CheckSupportMetadata(const vector<int> & core_dofs,
-                              const vector<int> & support_dofs,
-                              const vector<int> & core_in_support)
-    {
-      if (core_in_support.size() != core_dofs.size())
-        throw Exception("core_in_support and core_dofs must have the same length");
-
-      for (size_t i = 0; i < core_dofs.size(); i++)
-        {
-          int local = core_in_support[i];
-          if (local < 0 || local >= support_dofs.size())
-            throw Exception("core_in_support index out of range");
-          if (support_dofs[local] != core_dofs[i])
-            throw Exception("support_dofs[core_in_support[i]] must equal core_dofs[i]");
-        }
-    }
-  }
+  namespace detail = ngcomp::myassembling_detail;
 
   shared_ptr<BaseSparseMatrix> MyAssembleMatrix(shared_ptr<FESpace> fes,
                                                 shared_ptr<BilinearFormIntegrator> bfi)
@@ -115,14 +76,12 @@ namespace ngcomp
   {
     auto ma = fes->GetMeshAccess();
 
-    for (int elnr : core_elements)
-      CheckElementNumber(ma, elnr);
-    for (int elnr : support_elements)
-      CheckElementNumber(ma, elnr);
+    detail::CheckElementNumbers(ma, core_elements, "core_elements");
+    detail::CheckElementNumbers(ma, support_elements, "support_elements");
 
-    CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support = BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core = BuildGlobalToLocal(fes, core_dofs);
+    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support = detail::BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core = detail::BuildGlobalToLocal(fes, core_dofs);
 
     Array<int> rows, cols;
     Array<double> vals;
@@ -152,14 +111,10 @@ namespace ngcomp
                 continue;
               }
 
-            if (global_to_support.find(dnums[i]) == global_to_support.end())
+            if (detail::LocalDof(dnums[i], global_to_support) < 0)
               throw Exception("Element dof is missing from supplied support_dofs");
 
-            auto it_core = global_to_core.find(dnums[i]);
-            if (it_core == global_to_core.end())
-              core_ldnums[i] = -1;
-            else
-              core_ldnums[i] = it_core->second;
+            core_ldnums[i] = detail::LocalDof(dnums[i], global_to_core);
           }
 
         const ElementTransformation & trafo = ma->GetTrafo(ei, lh);
@@ -182,11 +137,8 @@ namespace ngcomp
     result->mat = SparseMatrix<double>::CreateFromCOO(rows, cols, vals,
                                                       core_dofs.size(),
                                                       core_dofs.size());
-    result->core_elements = std::move(core_elements);
-    result->support_elements = std::move(support_elements);
-    result->core_dofs = std::move(core_dofs);
-    result->support_dofs = std::move(support_dofs);
-    result->core_in_support = std::move(core_in_support);
+    detail::FillPatchMetadata(*result, core_elements, support_elements,
+                              core_dofs, support_dofs, core_in_support);
 
     return result;
   }
@@ -203,14 +155,12 @@ namespace ngcomp
   {
     auto ma = fes->GetMeshAccess();
 
-    for (int elnr : core_elements)
-      CheckElementNumber(ma, elnr);
-    for (int elnr : support_elements)
-      CheckElementNumber(ma, elnr);
+    detail::CheckElementNumbers(ma, core_elements, "core_elements");
+    detail::CheckElementNumbers(ma, support_elements, "support_elements");
 
-    CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support = BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core = BuildGlobalToLocal(fes, core_dofs);
+    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
+    auto global_to_support = detail::BuildGlobalToLocal(fes, support_dofs);
+    auto global_to_core = detail::BuildGlobalToLocal(fes, core_dofs);
 
     auto vec = make_shared<VVector<double>> (core_dofs.size());
     vec->SetScalar(0.0);
@@ -242,23 +192,20 @@ namespace ngcomp
           {
             if (dnums[i] < 0)
               continue;
-            if (global_to_support.find(dnums[i]) == global_to_support.end())
+            if (detail::LocalDof(dnums[i], global_to_support) < 0)
               throw Exception("Element dof is missing from supplied support_dofs");
 
-            auto it_core = global_to_core.find(dnums[i]);
-            if (it_core == global_to_core.end())
+            int core_ldof = detail::LocalDof(dnums[i], global_to_core);
+            if (core_ldof < 0)
               continue;
-            local_vec(it_core->second) += elvec(i);
+            local_vec(core_ldof) += elvec(i);
           }
       }
 
     auto result = make_shared<LocalVector>();
     result->vec = vec;
-    result->core_elements = std::move(core_elements);
-    result->support_elements = std::move(support_elements);
-    result->core_dofs = std::move(core_dofs);
-    result->support_dofs = std::move(support_dofs);
-    result->core_in_support = std::move(core_in_support);
+    detail::FillPatchMetadata(*result, core_elements, support_elements,
+                              core_dofs, support_dofs, core_in_support);
 
     return result;
   }
