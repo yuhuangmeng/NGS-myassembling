@@ -76,8 +76,8 @@ namespace ngcomp
   {
     auto ma = fes->GetMeshAccess();
 
-    detail::CheckElementNumbers(ma, core_elements, "core_elements");
-    detail::CheckElementNumbers(ma, support_elements, "support_elements");
+    detail::CheckElementNumbers(ma, core_elements);
+    detail::CheckElementNumbers(ma, support_elements);
 
     detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
     auto global_to_support = detail::BuildGlobalToLocal(fes, support_dofs);
@@ -155,8 +155,8 @@ namespace ngcomp
   {
     auto ma = fes->GetMeshAccess();
 
-    detail::CheckElementNumbers(ma, core_elements, "core_elements");
-    detail::CheckElementNumbers(ma, support_elements, "support_elements");
+    detail::CheckElementNumbers(ma, core_elements);
+    detail::CheckElementNumbers(ma, support_elements);
 
     detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
     auto global_to_support = detail::BuildGlobalToLocal(fes, support_dofs);

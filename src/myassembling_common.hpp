@@ -30,8 +30,7 @@ namespace ngcomp
   namespace myassembling_detail
   {
     void CheckElementNumbers(shared_ptr<MeshAccess> ma,
-                             const std::vector<int> & elements,
-                             const std::string & name);
+                             const std::vector<int> & elements);
 
     void CheckSupportMetadata(const std::vector<int> & core_dofs,
                               const std::vector<int> & support_dofs,

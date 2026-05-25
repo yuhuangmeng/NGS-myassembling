@@ -62,8 +62,8 @@ namespace ngcomp
       detail::BuildGlobalToLocal(fes, core_dofs);
 
     auto ma = fes->GetMeshAccess();
-    detail::CheckElementNumbers(ma, core_elements, "core_elements");
-    detail::CheckElementNumbers(ma, support_elements, "support_elements");
+    detail::CheckElementNumbers(ma, core_elements);
+    detail::CheckElementNumbers(ma, support_elements);
 
     int dim = fes->GetDimension();
     int local_size = int(core_dofs.size()) * dim;
@@ -163,8 +163,8 @@ namespace ngcomp
       detail::BuildGlobalToLocal(fes, core_dofs);
 
     auto ma = fes->GetMeshAccess();
-    detail::CheckElementNumbers(ma, core_elements, "core_elements");
-    detail::CheckElementNumbers(ma, support_elements, "support_elements");
+    detail::CheckElementNumbers(ma, core_elements);
+    detail::CheckElementNumbers(ma, support_elements);
 
     int dim = fes->GetDimension();
     auto local_res = make_shared<VVector<double>>(core_dofs.size() * dim);

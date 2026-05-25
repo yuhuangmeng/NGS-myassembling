@@ -3,12 +3,11 @@
 namespace ngcomp::myassembling_detail
 {
   void CheckElementNumbers(shared_ptr<MeshAccess> ma,
-                           const std::vector<int> & elements,
-                           const std::string & name)
+                           const std::vector<int> & elements)
   {
     for (int elnr : elements)
       if (elnr < 0 || elnr >= ma->GetNE(VOL))
-        throw Exception(name + " contains invalid volume element number: " + ToString(elnr));
+        throw Exception("invalid volume element number: " + ToString(elnr));
   }
 
   void CheckSupportMetadata(const std::vector<int> & core_dofs,
