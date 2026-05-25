@@ -62,8 +62,8 @@ Python constructs the support patch and index maps. C++ assembles over
 support_elements and returns the core entries using core_dofs as the local
 numbering.)raw_string");
 
-  m.def ("MyAssembleNonlinearLocalResidual",
-         &ngcomp::MyAssembleNonlinearLocalResidual,
+  m.def ("MyAssembleLocalNonlinearResidual",
+         &ngcomp::MyAssembleLocalNonlinearResidual,
          py::arg("fes"), py::arg("a"), py::arg("u"),
          py::arg("core_elements"), py::arg("support_elements"),
          py::arg("core_dofs"), py::arg("support_dofs"),
@@ -75,8 +75,8 @@ The current solution vector u is a global NGSolve vector. C++ assembles over
 support_elements and returns the core entries using core_dofs as the local
 numbering.)raw_string");
 
-  m.def ("MyAssembleNonlinearLocalJacobian",
-         &ngcomp::MyAssembleNonlinearLocalJacobian,
+  m.def ("MyAssembleLocalNonlinearJacobian",
+         &ngcomp::MyAssembleLocalNonlinearJacobian,
          py::arg("fes"), py::arg("a"), py::arg("u"),
          py::arg("core_elements"), py::arg("support_elements"),
          py::arg("core_dofs"), py::arg("support_dofs"),
