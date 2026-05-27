@@ -44,29 +44,41 @@ namespace ngcomp
     }
   }
 
-  shared_ptr<LocalMatrix>
-  MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
-                                   shared_ptr<BilinearForm> a,
-                                   const BaseVector & u,
-                                   std::vector<int> core_elements,
-                                   std::vector<int> support_elements,
-                                   std::vector<int> core_dofs,
-                                   std::vector<int> support_dofs,
-                                   std::vector<int> core_in_support)
+  LocalNonlinearOperator ::
+  LocalNonlinearOperator(shared_ptr<FESpace> fes_in,
+                         shared_ptr<BilinearForm> a_in,
+                         std::vector<int> core_elements_in,
+                         std::vector<int> support_elements_in,
+                         std::vector<int> core_dofs_in,
+                         std::vector<int> support_dofs_in,
+                         std::vector<int> core_in_support_in)
+    : fes(std::move(fes_in)),
+      a(std::move(a_in)),
+      core_elements(std::move(core_elements_in)),
+      support_elements(std::move(support_elements_in)),
+      core_dofs(std::move(core_dofs_in)),
+      support_dofs(std::move(support_dofs_in)),
+      core_in_support(std::move(core_in_support_in))
   {
     CheckSupportedProblem(fes, a);
     detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support =
-      detail::BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core =
-      detail::BuildGlobalToLocal(fes, core_dofs);
+    ma = fes->GetMeshAccess();
 
-    auto ma = fes->GetMeshAccess();
     detail::CheckElementNumbers(ma, core_elements);
     detail::CheckElementNumbers(ma, support_elements);
 
-    int dim = fes->GetDimension();
-    int local_size = int(core_dofs.size()) * dim;
+    global_to_support = detail::BuildGlobalToLocal(fes, support_dofs);
+    global_to_core = detail::BuildGlobalToLocal(fes, core_dofs);
+
+    dim = fes->GetDimension();
+    local_size = int(core_dofs.size()) * dim;
+  }
+
+
+  shared_ptr<LocalMatrix>
+  LocalNonlinearOperator ::
+  Jacobian(const BaseVector & u) const
+  {
 
     Array<int> rows, cols;
     Array<double> vals;
@@ -146,27 +158,9 @@ namespace ngcomp
   }
 
   shared_ptr<LocalVector>
-  MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
-                                   shared_ptr<BilinearForm> a,
-                                   const BaseVector & u,
-                                   std::vector<int> core_elements,
-                                   std::vector<int> support_elements,
-                                   std::vector<int> core_dofs,
-                                   std::vector<int> support_dofs,
-                                   std::vector<int> core_in_support)
+  LocalNonlinearOperator ::
+  Residual(const BaseVector & u) const
   {
-    CheckSupportedProblem(fes, a);
-    detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
-    auto global_to_support =
-      detail::BuildGlobalToLocal(fes, support_dofs);
-    auto global_to_core =
-      detail::BuildGlobalToLocal(fes, core_dofs);
-
-    auto ma = fes->GetMeshAccess();
-    detail::CheckElementNumbers(ma, core_elements);
-    detail::CheckElementNumbers(ma, support_elements);
-
-    int dim = fes->GetDimension();
     auto local_res = make_shared<VVector<double>>(core_dofs.size() * dim);
     local_res->SetScalar(0.0);
     auto local_fv = local_res->FV<double>();
@@ -228,4 +222,5 @@ namespace ngcomp
 
     return result;
   }
+
 }

@@ -31,25 +31,41 @@
 
 namespace ngcomp
 {
-  shared_ptr<LocalMatrix>
-  MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
-                                   shared_ptr<BilinearForm> a,
-                                   const BaseVector & u,
-                                   std::vector<int> core_elements,
-                                   std::vector<int> support_elements,
-                                   std::vector<int> core_dofs,
-                                   std::vector<int> support_dofs,
-                                   std::vector<int> core_in_support);
+  class LocalNonlinearOperator
+  {
+  public:
+    LocalNonlinearOperator(shared_ptr<FESpace> fes,
+                           shared_ptr<BilinearForm> a,
+                           std::vector<int> core_elements,
+                           std::vector<int> support_elements,
+                           std::vector<int> core_dofs,
+                           std::vector<int> support_dofs,
+                           std::vector<int> core_in_support);
 
-  shared_ptr<LocalVector>
-  MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
-                                   shared_ptr<BilinearForm> a,
-                                   const BaseVector & u,
-                                   std::vector<int> core_elements,
-                                   std::vector<int> support_elements,
-                                   std::vector<int> core_dofs,
-                                   std::vector<int> support_dofs,
-                                   std::vector<int> core_in_support);
+    shared_ptr<LocalMatrix>
+    Jacobian(const BaseVector & u) const;
+
+    shared_ptr<LocalVector>
+    Residual(const BaseVector & u) const;
+
+  private:
+    shared_ptr<FESpace> fes;
+    shared_ptr<BilinearForm> a;
+    shared_ptr<MeshAccess> ma;
+
+    std::vector<int> core_elements;
+    std::vector<int> support_elements;
+    std::vector<int> core_dofs;
+    std::vector<int> support_dofs;
+    std::vector<int> core_in_support;
+
+    std::vector<int> global_to_support;
+    std::vector<int> global_to_core;
+
+    int dim = 1;
+    int local_size = 0;
+  };
+
 }
 
 #endif
