@@ -51,14 +51,18 @@ namespace ngcomp
                          std::vector<int> support_elements_in,
                          std::vector<int> core_dofs_in,
                          std::vector<int> support_dofs_in,
-                         std::vector<int> core_in_support_in)
+                         std::vector<int> core_in_support_in,
+                         std::vector<int> boundary_dofs_in,
+                         std::vector<double> boundary_values_in)
     : fes(std::move(fes_in)),
       a(std::move(a_in)),
       core_elements(std::move(core_elements_in)),
       support_elements(std::move(support_elements_in)),
       core_dofs(std::move(core_dofs_in)),
       support_dofs(std::move(support_dofs_in)),
-      core_in_support(std::move(core_in_support_in))
+      core_in_support(std::move(core_in_support_in)),
+      boundary_dofs(std::move(boundary_dofs_in)),
+      boundary_values(std::move(boundary_values_in))
   {
     CheckSupportedProblem(fes, a);
     detail::CheckSupportMetadata(core_dofs, support_dofs, core_in_support);
@@ -72,6 +76,32 @@ namespace ngcomp
 
     dim = fes->GetDimension();
     local_size = int(core_dofs.size()) * dim;
+
+    if (boundary_dofs.size() != boundary_values.size())
+      throw Exception("LocalNonlinearOperator: boundary_dofs and boundary_values have different sizes");
+    if (!boundary_dofs.empty() && dim != 1)
+      throw Exception("LocalNonlinearOperator: boundary dof constraints are implemented for scalar spaces only");
+
+    is_boundary_core_dof.assign(local_size, false);
+    std::vector<char> seen_boundary_dof(fes->GetNDof(), false);
+    for (size_t i = 0; i < boundary_dofs.size(); i++)
+      {
+        int gdof = boundary_dofs[i];
+        if (gdof < 0 || gdof >= fes->GetNDof())
+          throw Exception("LocalNonlinearOperator: boundary dof is outside the FESpace dof range");
+        if (seen_boundary_dof[gdof])
+          throw Exception("LocalNonlinearOperator: duplicate boundary dof");
+        seen_boundary_dof[gdof] = true;
+
+        int ldof = detail::LocalDof(gdof, global_to_core);
+        if (ldof < 0)
+          continue;
+
+        boundary_core_dofs.push_back(ldof);
+        boundary_core_global_dofs.push_back(gdof);
+        boundary_core_values.push_back(boundary_values[i]);
+        is_boundary_core_dof[ldof] = true;
+      }
   }
 
 
@@ -140,12 +170,24 @@ namespace ngcomp
                 for (int ci = 0; ci < dim; ci++)
                   for (int cj = 0; cj < dim; cj++)
                     {
-                      rows.Append(dim*li+ci);
-                      cols.Append(dim*lj+cj);
+                      int row = dim*li+ci;
+                      int col = dim*lj+cj;
+                      if (is_boundary_core_dof[row] ||
+                          is_boundary_core_dof[col])
+                        continue;
+                      rows.Append(row);
+                      cols.Append(col);
                       vals.Append(sum_elmat(dim*i+ci, dim*j+cj));
                     }
               }
           }
+      }
+
+    for (int ldof : boundary_core_dofs)
+      {
+        rows.Append(ldof);
+        cols.Append(ldof);
+        vals.Append(1.0);
       }
 
     auto result = make_shared<LocalMatrix>();
@@ -213,6 +255,14 @@ namespace ngcomp
                   local_fv(dim*ldof+c) += elvecy(dim*i+c);
               }
           }
+      }
+
+    if (!boundary_core_dofs.empty())
+      {
+        auto u_fv = u.FV<double>();
+        for (size_t i = 0; i < boundary_core_dofs.size(); i++)
+          local_fv(boundary_core_dofs[i]) =
+            u_fv(boundary_core_global_dofs[i]) - boundary_core_values[i];
       }
 
     auto result = make_shared<LocalVector>();

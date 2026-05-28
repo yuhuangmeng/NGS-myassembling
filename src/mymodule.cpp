@@ -70,14 +70,18 @@ numbering.)raw_string");
                   std::vector<int>,
                   std::vector<int>,
                   std::vector<int>,
-                  std::vector<int>>(),
+                  std::vector<int>,
+                  std::vector<int>,
+                  std::vector<double>>(),
          py::arg("fes"),
          py::arg("a"),
          py::arg("core_elements"),
          py::arg("support_elements"),
          py::arg("core_dofs"),
          py::arg("support_dofs"),
-         py::arg("core_in_support"))
+         py::arg("core_in_support"),
+         py::arg("boundary_dofs") = std::vector<int>(),
+         py::arg("boundary_values") = std::vector<double>())
     .def("Jacobian",
          &ngcomp::LocalNonlinearOperator::Jacobian,
          py::arg("u"))

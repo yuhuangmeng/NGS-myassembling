@@ -40,7 +40,9 @@ namespace ngcomp
                            std::vector<int> support_elements,
                            std::vector<int> core_dofs,
                            std::vector<int> support_dofs,
-                           std::vector<int> core_in_support);
+                           std::vector<int> core_in_support,
+                           std::vector<int> boundary_dofs = {},
+                           std::vector<double> boundary_values = {});
 
     shared_ptr<LocalMatrix>
     Jacobian(const BaseVector & u) const;
@@ -61,6 +63,13 @@ namespace ngcomp
 
     std::vector<int> global_to_support;
     std::vector<int> global_to_core;
+
+    std::vector<int> boundary_dofs;
+    std::vector<double> boundary_values;
+    std::vector<int> boundary_core_dofs;
+    std::vector<int> boundary_core_global_dofs;
+    std::vector<double> boundary_core_values;
+    std::vector<char> is_boundary_core_dof;
 
     int dim = 1;
     int local_size = 0;
