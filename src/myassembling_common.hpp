@@ -27,6 +27,18 @@ namespace ngcomp
     std::vector<int> core_in_support;
   };
 
+  struct LocalSupportInfo
+  {
+    std::vector<int> core_dofs;
+    std::vector<int> support_dofs;
+    std::vector<int> support_elements;
+    std::vector<int> core_in_support;
+  };
+
+  shared_ptr<LocalSupportInfo>
+  BuildLocalSupportInfo(shared_ptr<FESpace> fes,
+                        std::vector<int> core_dofs);
+
   namespace myassembling_detail
   {
     void CheckElementNumbers(shared_ptr<MeshAccess> ma,
@@ -38,6 +50,15 @@ namespace ngcomp
 
     std::vector<int> BuildGlobalToLocal(shared_ptr<FESpace> fes,
                                         const std::vector<int> & dofs);
+
+    std::vector<int> FindElementsTouchingDofs(shared_ptr<FESpace> fes,
+                                              const std::vector<int> & dofs);
+
+    std::vector<int> DofsOfElements(shared_ptr<FESpace> fes,
+                                    const std::vector<int> & elements);
+
+    std::vector<int> CoreInSupport(const std::vector<int> & core_dofs,
+                                   const std::vector<int> & support_dofs);
 
     int LocalDof(int gdof,
                  const std::vector<int> & global_to_local);

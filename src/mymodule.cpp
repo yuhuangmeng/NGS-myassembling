@@ -30,6 +30,18 @@ PYBIND11_MODULE(myassembling, m)
     .def_readonly("core_in_support", &ngcomp::LocalVector::core_in_support)
     ;
 
+  py::class_<ngcomp::LocalSupportInfo, shared_ptr<ngcomp::LocalSupportInfo>>
+    (m, "LocalSupportInfo")
+    .def_readwrite("core_dofs", &ngcomp::LocalSupportInfo::core_dofs)
+    .def_readwrite("support_dofs", &ngcomp::LocalSupportInfo::support_dofs)
+    .def_readwrite("support_elements", &ngcomp::LocalSupportInfo::support_elements)
+    .def_readwrite("core_in_support", &ngcomp::LocalSupportInfo::core_in_support)
+    ;
+
+  m.def ("BuildLocalSupportInfo",
+         &ngcomp::BuildLocalSupportInfo,
+         py::arg("fes"), py::arg("core_dofs"));
+
   m.def ("MyAssembleMatrix",
          &ngcomp::MyAssembleMatrix,
          py::arg("fes"),py::arg("integrator"));
@@ -66,22 +78,10 @@ numbering.)raw_string");
     (m, "LocalNonlinearOperator")
     .def(py::init<shared_ptr<ngcomp::FESpace>,
                   shared_ptr<ngcomp::BilinearForm>,
-                  std::vector<int>,
-                  std::vector<int>,
-                  std::vector<int>,
-                  std::vector<int>,
-                  std::vector<int>,
-                  std::vector<int>,
-                  std::vector<double>>(),
+                  std::vector<int>>(),
          py::arg("fes"),
          py::arg("a"),
-         py::arg("core_elements"),
-         py::arg("support_elements"),
-         py::arg("core_dofs"),
-         py::arg("support_dofs"),
-         py::arg("core_in_support"),
-         py::arg("boundary_dofs") = std::vector<int>(),
-         py::arg("boundary_values") = std::vector<double>())
+         py::arg("local_dofs"))
     .def("Jacobian",
          &ngcomp::LocalNonlinearOperator::Jacobian,
          py::arg("u"))
@@ -89,5 +89,15 @@ numbering.)raw_string");
          &ngcomp::LocalNonlinearOperator::Residual,
          py::arg("u"))
     ;
+
+  m.def ("MyAssembleLocalNonlinearResidual",
+         &ngcomp::MyAssembleLocalNonlinearResidual,
+         py::arg("fes"), py::arg("a"), py::arg("u"),
+         py::arg("local_dofs"));
+
+  m.def ("MyAssembleLocalNonlinearJacobian",
+         &ngcomp::MyAssembleLocalNonlinearJacobian,
+         py::arg("fes"), py::arg("a"), py::arg("u"),
+         py::arg("local_dofs"));
 
 }
