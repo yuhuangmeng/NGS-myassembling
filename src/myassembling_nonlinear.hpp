@@ -34,7 +34,9 @@ namespace ngcomp
   public:
     LocalNonlinearOperator(shared_ptr<FESpace> fes,
                            shared_ptr<BilinearForm> a,
-                           std::vector<int> local_dofs);
+                           std::vector<int> local_dofs,
+                           std::vector<int> boundary_dofs,
+                           std::vector<double> boundary_values);
 
     shared_ptr<LocalVector>
     Residual(const BaseVector & u) const;
@@ -54,22 +56,33 @@ namespace ngcomp
 
     std::vector<int> global_to_core_;
     std::vector<int> global_to_support_;
+    std::vector<int> global_to_boundary_;
+
+    std::vector<int> boundary_dofs_;
+    std::vector<double> boundary_values_;
 
     int dim_ = 1;
     int local_size_ = 0;
+
+    int BoundaryIndex(int gdof) const;
+    bool IsBoundaryDof(int gdof) const;
   };
 
   shared_ptr<LocalVector>
   MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
-                                   std::vector<int> local_dofs);
+                                   std::vector<int> local_dofs,
+                                   std::vector<int> boundary_dofs,
+                                   std::vector<double> boundary_values);
 
   shared_ptr<LocalMatrix>
   MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
-                                   std::vector<int> local_dofs);
+                                   std::vector<int> local_dofs,
+                                   std::vector<int> boundary_dofs,
+                                   std::vector<double> boundary_values);
 }
 
 #endif

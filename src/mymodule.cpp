@@ -78,10 +78,14 @@ numbering.)raw_string");
     (m, "LocalNonlinearOperator")
     .def(py::init<shared_ptr<ngcomp::FESpace>,
                   shared_ptr<ngcomp::BilinearForm>,
-                  std::vector<int>>(),
+                  std::vector<int>,
+                  std::vector<int>,
+                  std::vector<double>>(),
          py::arg("fes"),
          py::arg("a"),
-         py::arg("local_dofs"))
+         py::arg("local_dofs"),
+         py::arg("boundary_dofs"),
+         py::arg("boundary_values"))
     .def("Jacobian",
          &ngcomp::LocalNonlinearOperator::Jacobian,
          py::arg("u"))
@@ -93,11 +97,15 @@ numbering.)raw_string");
   m.def ("MyAssembleLocalNonlinearResidual",
          &ngcomp::MyAssembleLocalNonlinearResidual,
          py::arg("fes"), py::arg("a"), py::arg("u"),
-         py::arg("local_dofs"));
+         py::arg("local_dofs"),
+         py::arg("boundary_dofs"),
+         py::arg("boundary_values"));
 
   m.def ("MyAssembleLocalNonlinearJacobian",
          &ngcomp::MyAssembleLocalNonlinearJacobian,
          py::arg("fes"), py::arg("a"), py::arg("u"),
-         py::arg("local_dofs"));
+         py::arg("local_dofs"),
+         py::arg("boundary_dofs"),
+         py::arg("boundary_values"));
 
 }

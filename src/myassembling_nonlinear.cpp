@@ -1,5 +1,7 @@
 #include "myassembling_nonlinear.hpp"
 
+#include <algorithm>
+
 namespace ngcomp
 {
   namespace detail = ngcomp::myassembling_detail;
@@ -42,12 +44,53 @@ namespace ngcomp
             detail::LocalDof(dnums[i], global_to_support) < 0)
           throw Exception("AssembleNonlinearLocal: element dof is missing from computed support_dofs");
     }
+
+    void PrepareBoundaryData(shared_ptr<FESpace> fes,
+                             std::vector<int> boundary_dofs,
+                             std::vector<double> boundary_values,
+                             std::vector<int> & sorted_dofs,
+                             std::vector<double> & sorted_values,
+                             std::vector<int> & global_to_boundary)
+    {
+      if (boundary_dofs.size() != boundary_values.size())
+        throw Exception("AssembleNonlinearLocal: boundary_dofs and boundary_values must have the same length");
+
+      std::vector<std::pair<int, double>> pairs;
+      pairs.reserve(boundary_dofs.size());
+      for (size_t i = 0; i < boundary_dofs.size(); i++)
+        {
+          int gdof = boundary_dofs[i];
+          if (gdof < 0 || gdof >= fes->GetNDof())
+            throw Exception("AssembleNonlinearLocal: boundary dof is outside the FESpace dof range: " + ToString(gdof));
+          pairs.emplace_back(gdof, boundary_values[i]);
+        }
+
+      std::sort(pairs.begin(), pairs.end(),
+                [] (const auto & a, const auto & b) { return a.first < b.first; });
+
+      sorted_dofs.clear();
+      sorted_values.clear();
+      sorted_dofs.reserve(pairs.size());
+      sorted_values.reserve(pairs.size());
+      global_to_boundary.assign(fes->GetNDof(), -1);
+
+      for (size_t i = 0; i < pairs.size(); i++)
+        {
+          if (i > 0 && pairs[i].first == pairs[i-1].first)
+            throw Exception("AssembleNonlinearLocal: boundary_dofs contains duplicate global dof: " + ToString(pairs[i].first));
+          sorted_dofs.push_back(pairs[i].first);
+          sorted_values.push_back(pairs[i].second);
+          global_to_boundary[pairs[i].first] = int(i);
+        }
+    }
   }
 
   LocalNonlinearOperator ::
   LocalNonlinearOperator(shared_ptr<FESpace> fes,
                          shared_ptr<BilinearForm> a,
-                         std::vector<int> local_dofs)
+                         std::vector<int> local_dofs,
+                         std::vector<int> boundary_dofs,
+                         std::vector<double> boundary_values)
     : fes_(std::move(fes)),
       a_(std::move(a))
   {
@@ -63,9 +106,30 @@ namespace ngcomp
 
     global_to_core_ = detail::BuildGlobalToLocal(fes_, core_dofs_);
     global_to_support_ = detail::BuildGlobalToLocal(fes_, support_dofs_);
+    PrepareBoundaryData(fes_, std::move(boundary_dofs), std::move(boundary_values),
+                        boundary_dofs_, boundary_values_, global_to_boundary_);
 
     dim_ = fes_->GetDimension();
+    if (dim_ != 1 && !boundary_dofs_.empty())
+      throw Exception("AssembleNonlinearLocal: Dirichlet row treatment is currently implemented only for scalar FESpaces");
+
     local_size_ = int(core_dofs_.size()) * dim_;
+  }
+
+
+  int LocalNonlinearOperator ::
+  BoundaryIndex(int gdof) const
+  {
+    if (gdof < 0 || size_t(gdof) >= global_to_boundary_.size())
+      return -1;
+    return global_to_boundary_[gdof];
+  }
+
+
+  bool LocalNonlinearOperator ::
+  IsBoundaryDof(int gdof) const
+  {
+    return BoundaryIndex(gdof) >= 0;
   }
 
 
@@ -124,6 +188,21 @@ namespace ngcomp
                 for (int c = 0; c < dim_; c++)
                   local_fv(dim_*ldof+c) += elvecy(dim_*i+c);
               }
+          }
+      }
+
+    if (!boundary_dofs_.empty())
+      {
+        Array<int> bdnum(1);
+        FlatVector<double> bdval(1, lh);
+        for (size_t i = 0; i < core_dofs_.size(); i++)
+          {
+            int bidx = BoundaryIndex(core_dofs_[i]);
+            if (bidx < 0)
+              continue;
+            bdnum[0] = core_dofs_[i];
+            u.GetIndirect(bdnum, bdval);
+            local_fv(int(i)) = bdval(0) - boundary_values_[bidx];
           }
       }
 
@@ -187,10 +266,18 @@ namespace ngcomp
         // Matches S_BilinearForm::AssembleLinearization: element matrix DoF transform.
         fes_->TransformMat(ei, sum_elmat, TRANSFORM_MAT_LEFT_RIGHT);
 
+        // Row-only Dirichlet treatment:
+        // boundary residual rows are F_i(u) = u_i - g_i, hence the
+        // corresponding Jacobian rows are identity rows. We do NOT clear
+        // boundary columns, because interior residual rows are left unchanged
+        // and may still depend on boundary dofs. Clearing columns would
+        // require additional residual/RHS corrections for nonzero g_i.
         for (int i = 0; i < dnums.Size(); i++)
           {
             int li = detail::LocalDof(dnums[i], global_to_core_);
             if (li < 0)
+              continue;
+            if (IsBoundaryDof(dnums[i]))
               continue;
             for (int j = 0; j < dnums.Size(); j++)
               {
@@ -208,6 +295,14 @@ namespace ngcomp
           }
       }
 
+    for (size_t i = 0; i < core_dofs_.size(); i++)
+      if (IsBoundaryDof(core_dofs_[i]))
+        {
+          rows.Append(int(i));
+          cols.Append(int(i));
+          vals.Append(1.0);
+        }
+
     auto result = make_shared<LocalMatrix>();
     result->mat = SparseMatrix<double>::CreateFromCOO(rows, cols, vals,
                                                       local_size_, local_size_);
@@ -222,9 +317,13 @@ namespace ngcomp
   MyAssembleLocalNonlinearResidual(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
-                                   std::vector<int> local_dofs)
+                                   std::vector<int> local_dofs,
+                                   std::vector<int> boundary_dofs,
+                                   std::vector<double> boundary_values)
   {
-    LocalNonlinearOperator op(fes, a, std::move(local_dofs));
+    LocalNonlinearOperator op(fes, a, std::move(local_dofs),
+                              std::move(boundary_dofs),
+                              std::move(boundary_values));
     return op.Residual(u);
   }
 
@@ -233,9 +332,13 @@ namespace ngcomp
   MyAssembleLocalNonlinearJacobian(shared_ptr<FESpace> fes,
                                    shared_ptr<BilinearForm> a,
                                    const BaseVector & u,
-                                   std::vector<int> local_dofs)
+                                   std::vector<int> local_dofs,
+                                   std::vector<int> boundary_dofs,
+                                   std::vector<double> boundary_values)
   {
-    LocalNonlinearOperator op(fes, a, std::move(local_dofs));
+    LocalNonlinearOperator op(fes, a, std::move(local_dofs),
+                              std::move(boundary_dofs),
+                              std::move(boundary_values));
     return op.Jacobian(u);
   }
 }
